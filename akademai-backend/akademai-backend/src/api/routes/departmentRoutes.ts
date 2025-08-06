@@ -1,0 +1,10 @@
+import { Router } from 'express';
+import * as departmentController from '../controllers/departmentController';
+import { authenticateToken } from '../middleware/authMiddleware';
+const router = Router();
+router.get('/', departmentController.getAllDepartments);
+router.get('/:id', authenticateToken, departmentController.getDepartmentById);
+router.post('/', authenticateToken, departmentController.createDepartment);
+router.put('/:id', authenticateToken, departmentController.updateDepartment);
+router.delete('/:id', authenticateToken, departmentController.deleteDepartment);
+export default router;

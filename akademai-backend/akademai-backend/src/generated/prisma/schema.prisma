@@ -1,0 +1,387 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                                                             Int                         @id @default(autoincrement())
+  email                                                          String                      @unique @db.VarChar(255)
+  password                                                       String?                     @db.VarChar(255)
+  username                                                       String?                     @db.VarChar(255)
+  firstName                                                      String                      @db.VarChar(255)
+  lastName                                                       String                      @db.VarChar(255)
+  role                                                           user_role
+  loginType                                                      login_type
+  microsoftId                                                    String?                     @db.VarChar(255)
+  createdAt                                                      DateTime                    @default(now()) @db.Timestamp(6)
+  updatedAt                                                      DateTime                    @default(now()) @updatedAt @db.Timestamp(6)
+  admin_permission_logs_admin_permission_logs_modified_byTousers admin_permission_logs[]     @relation("admin_permission_logs_modified_byTousers")
+  admin_permission_logs_admin_permission_logs_user_idTousers     admin_permission_logs[]     @relation("admin_permission_logs_user_idTousers")
+  admin_permissions_admin_permissions_granted_byTousers          admin_permissions[]         @relation("admin_permissions_granted_byTousers")
+  admin_permissions_admin_permissions_user_idTousers             admin_permissions[]         @relation("admin_permissions_user_idTousers")
+  admin                                                          Admin[]
+  bootcamp_progress                                              bootcamp_progress[]
+  conference_attendees                                           conference_attendees[]
+  employee                                                       Employee[]
+  enrollments                                                    enrollments[]
+  logs                                                           Log[]
+  user_bootcamp_assignments                                      user_bootcamp_assignments[]
+  user_training_assignments                                      user_training_assignments[]
+  user_training_progress                                         user_training_progress[]
+
+  @@index([email], map: "idx_users_email")
+  @@index([microsoftId], map: "idx_users_microsoft_id")
+  @@map("users")
+}
+
+model Employee {
+  id            Int         @id @default(autoincrement())
+  telesetCardNo String?     @unique @db.VarChar(255)
+  userId        Int
+  departmentId  Int?
+  position      String?     @db.VarChar(255)
+  createdAt     DateTime    @default(now()) @db.Timestamp(6)
+  updatedAt     DateTime    @default(now()) @updatedAt @db.Timestamp(6)
+  department    Department? @relation(fields: [departmentId], references: [id], onUpdate: NoAction)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([departmentId], map: "idx_employees_department_id")
+  @@index([userId], map: "idx_employees_user_id")
+  @@map("employees")
+}
+
+model Admin {
+  id         Int      @id @default(autoincrement())
+  adminLevel String   @db.VarChar(50)
+  userId     Int
+  createdAt  DateTime @default(now()) @db.Timestamp(6)
+  updatedAt  DateTime @default(now()) @updatedAt @db.Timestamp(6)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId], map: "idx_admins_user_id")
+  @@map("admins")
+}
+
+model Department {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique @db.VarChar(255)
+  description String?
+  createdAt   DateTime   @default(now()) @db.Timestamp(6)
+  updatedAt   DateTime   @default(now()) @updatedAt @db.Timestamp(6)
+  employees   Employee[]
+
+  @@map("departments")
+}
+
+model Log {
+  id            Int      @id @default(autoincrement())
+  action_type   String   @db.VarChar(100)
+  user_id       Int?
+  ip_address    String?  @db.VarChar(50)
+  user_agent    String?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  details       Json?
+  is_suspicious Boolean? @default(false)
+  users         User?    @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "logs_userId_fkey")
+
+  @@index([action_type], map: "idx_logs_action")
+  @@index([created_at], map: "idx_logs_created_at")
+  @@index([user_id], map: "idx_logs_user_id")
+  @@map("logs")
+}
+
+model admin_permission_logs {
+  id                                             Int      @id @default(autoincrement())
+  user_id                                        Int
+  modified_by                                    Int
+  action                                         String   @db.VarChar(50)
+  previous_role                                  String?  @db.VarChar(20)
+  new_role                                       String?  @db.VarChar(20)
+  action_date                                    DateTime @default(now()) @db.Timestamp(6)
+  notes                                          String?
+  users_admin_permission_logs_modified_byTousers User     @relation("admin_permission_logs_modified_byTousers", fields: [modified_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_admin_permission_logs_user_idTousers     User     @relation("admin_permission_logs_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model admin_permissions {
+  id                                        Int       @id @default(autoincrement())
+  user_id                                   Int
+  granted_by                                Int
+  permission_level                          String    @default("ADMIN_JUNIOR") @db.VarChar(20)
+  granted_at                                DateTime  @default(now()) @db.Timestamp(6)
+  revoked_at                                DateTime? @db.Timestamp(6)
+  is_active                                 Boolean   @default(true)
+  users_admin_permissions_granted_byTousers User      @relation("admin_permissions_granted_byTousers", fields: [granted_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_admin_permissions_user_idTousers    User      @relation("admin_permissions_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, is_active], map: "unique_active_user_permission")
+}
+
+model bootcamp_progress {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                Int
+  bootcamp_id            String    @db.Uuid
+  current_training_index Int?      @default(0)
+  progress_percentage    Decimal?  @default(0.0) @db.Decimal(5, 2)
+  last_activity          DateTime? @default(now()) @db.Timestamptz(6)
+  bootcamps              bootcamps @relation(fields: [bootcamp_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                  User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, bootcamp_id])
+}
+
+model bootcamp_trainings {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bootcamp_id String    @db.Uuid
+  training_id String    @db.Uuid
+  order_index Int
+  required    Boolean?  @default(true)
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  bootcamps   bootcamps @relation(fields: [bootcamp_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  trainings   trainings @relation(fields: [training_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([bootcamp_id, order_index])
+  @@unique([bootcamp_id, training_id])
+}
+
+model bootcamps {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                     String                      @db.VarChar(255)
+  description               String?
+  category                  String?                     @db.VarChar(255)
+  author                    String?                     @db.VarChar(255)
+  published                 Boolean?                    @default(false)
+  duration                  Int?
+  deadline                  DateTime?                   @db.Date
+  created_at                DateTime?                   @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime?                   @default(now()) @db.Timestamptz(6)
+  bootcamp_progress         bootcamp_progress[]
+  bootcamp_trainings        bootcamp_trainings[]
+  user_bootcamp_assignments user_bootcamp_assignments[]
+  user_training_progress    user_training_progress[]
+}
+
+model conference_attendees {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conference_id        String               @db.Uuid
+  user_id              Int
+  registered_at        DateTime?            @default(now()) @db.Timestamptz(6)
+  attended             Boolean?             @default(false)
+  attendance_time      DateTime?            @db.Timestamptz(6)
+  notes                String?
+  conference_trainings conference_trainings @relation(fields: [conference_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                User                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([conference_id, user_id])
+}
+
+model conference_materials {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conference_id        String               @db.Uuid
+  title                String               @db.VarChar(255)
+  description          String?
+  file_path            String?              @db.VarChar(255)
+  link                 String?              @db.VarChar(255)
+  created_at           DateTime?            @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime?            @default(now()) @db.Timestamptz(6)
+  conference_trainings conference_trainings @relation(fields: [conference_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model conference_trainings {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                String                 @db.VarChar(255)
+  description          String?
+  category             String?                @db.VarChar(255)
+  location             String                 @db.VarChar(255)
+  start_date           DateTime               @db.Timestamptz(6)
+  end_date             DateTime               @db.Timestamptz(6)
+  capacity             Int?                   @default(0)
+  author               String?                @db.VarChar(255)
+  published            Boolean?               @default(false)
+  created_at           DateTime?              @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime?              @default(now()) @db.Timestamptz(6)
+  conference_attendees conference_attendees[]
+  conference_materials conference_materials[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model enrollments {
+  id               Int       @id @default(autoincrement())
+  user_id          Int
+  training_id      String    @db.Uuid
+  status           String    @default("NOT_STARTED") @db.VarChar(20)
+  progress         Int       @default(0)
+  completed_items  Json?     @default("[]")
+  score            Decimal?  @db.Decimal(5, 2)
+  start_date       DateTime? @db.Timestamptz(6)
+  completed_at     DateTime? @db.Timestamptz(6)
+  last_accessed_at DateTime? @default(now()) @db.Timestamptz(6)
+  created_at       DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime? @default(now()) @db.Timestamptz(6)
+  trainings        trainings @relation(fields: [training_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users            User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, training_id])
+  @@index([training_id], map: "idx_enrollments_training_id")
+  @@index([user_id], map: "idx_enrollments_user_id")
+}
+
+model questions {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quiz_id        String    @db.Uuid
+  question_text  String
+  question_type  String    @db.VarChar(50)
+  options        Json?
+  correct_answer Json
+  points         Int?      @default(1)
+  order_index    Int
+  createdAt      DateTime? @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime? @default(now()) @db.Timestamptz(6)
+  quizzes        quizzes   @relation(fields: [quiz_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([quiz_id, order_index])
+  @@index([quiz_id], map: "idx_questions_quiz_id")
+}
+
+model quizzes {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  training_id    String?     @db.Uuid
+  title          String      @db.VarChar(255)
+  description    String?
+  pass_threshold Decimal?    @default(70.00) @db.Decimal(5, 2)
+  createdAt      DateTime?   @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime?   @default(now()) @db.Timestamptz(6)
+  questions      questions[]
+  trainings      trainings?  @relation(fields: [training_id], references: [id], onUpdate: NoAction)
+
+  @@index([training_id], map: "idx_quizzes_training_id")
+}
+
+model training_content {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  training_id   String    @db.Uuid
+  title         String    @db.VarChar(255)
+  content_type  String    @db.VarChar(50)
+  content_value String
+  order_index   Int
+  createdAt     DateTime? @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime? @default(now()) @db.Timestamptz(6)
+  trainings     trainings @relation(fields: [training_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([training_id, order_index])
+  @@index([training_id], map: "idx_training_content_training_id")
+}
+
+model trainings {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                     String                      @db.VarChar(255)
+  description               String?
+  category                  String?                     @db.VarChar(100)
+  duration                  Int?
+  author                    String?                     @db.VarChar(100)
+  published                 Boolean?                    @default(false)
+  tags                      String[]
+  createdAt                 DateTime?                   @default(now()) @db.Timestamptz(6)
+  updatedAt                 DateTime?                   @default(now()) @db.Timestamptz(6)
+  certificateTemplate       String?                     @db.VarChar(255)
+  learning_outcomes         String[]                    @default([])
+  deadline                  DateTime?                   @db.Date
+  is_mandatory              Boolean?                    @default(false)
+  bootcamp_trainings        bootcamp_trainings[]
+  enrollments               enrollments[]
+  quizzes                   quizzes[]
+  training_content          training_content[]
+  user_training_assignments user_training_assignments[]
+  user_training_progress    user_training_progress[]
+}
+
+model user_bootcamp_assignments {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         Int
+  bootcamp_id     String    @db.Uuid
+  assigned_at     DateTime? @default(now()) @db.Timestamptz(6)
+  completed       Boolean?  @default(false)
+  completion_date DateTime? @db.Timestamptz(6)
+  bootcamps       bootcamps @relation(fields: [bootcamp_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users           User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, bootcamp_id])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model user_quiz_attempts {
+  id             Int      @id @default(autoincrement())
+  user_id        Int
+  quiz_id        String   @db.Uuid
+  training_id    String   @db.Uuid
+  attempt_number Int      @default(1)
+  score          Decimal  @default(0.00) @db.Decimal(5, 2)
+  passed         Boolean  @default(false)
+  submitted_at   DateTime @default(now()) @db.Timestamptz(6)
+  answers        Json?
+
+  @@unique([user_id, quiz_id, attempt_number], map: "unique_user_quiz_attempt")
+  @@index([quiz_id], map: "idx_user_quiz_attempts_quiz_id")
+  @@index([training_id], map: "idx_user_quiz_attempts_training_id")
+  @@index([user_id], map: "idx_user_quiz_attempts_user_id")
+}
+
+model user_training_assignments {
+  assignment_id Int       @id @default(autoincrement())
+  user_id       Int
+  training_id   String    @db.Uuid
+  assigned_at   DateTime? @default(now()) @db.Timestamptz(6)
+  trainings     trainings @relation(fields: [training_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, training_id], map: "unique_user_training")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model user_training_progress {
+  user_id                     Int
+  bootcamp_id                 String?    @db.Uuid
+  training_id                 String     @db.Uuid
+  status                      String     @default("not_started") @db.VarChar(20)
+  started_at                  DateTime?  @db.Timestamptz(6)
+  completed_at                DateTime?  @db.Timestamptz(6)
+  progress_percentage         Decimal    @default(0.00) @db.Decimal(5, 2)
+  completed_content_items     Json       @default("[]")
+  completion_duration_seconds Int?
+  updatedAt                   DateTime?  @default(now()) @db.Timestamptz(6)
+  bootcamps                   bootcamps? @relation(fields: [bootcamp_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  trainings                   trainings  @relation(fields: [training_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                       User       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, training_id])
+  @@index([user_id, bootcamp_id], map: "idx_user_training_progress_user_bootcamp")
+}
+
+enum UserRole {
+  EMPLOYEE
+  ADMIN_JUNIOR
+  ADMIN_SENIOR
+}
+
+enum LoginType {
+  TELESET_CARD
+  MICROSOFT
+  USERNAME_PASSWORD
+}
+
+enum login_type {
+  TELESET_CARD
+  MICROSOFT
+  USERNAME_PASSWORD
+}
+
+enum user_role {
+  EMPLOYEE
+  ADMIN_JUNIOR
+  ADMIN_SENIOR
+}
